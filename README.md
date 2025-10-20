@@ -51,3 +51,12 @@ helm upgrade --install gitlab gitlab/gitlab `
 ```bash
 helm status gitlab -n gitlab
 ```
+
+## Get Secret
+```bash
+kubectl get secret gitlab-gitlab-initial-root-password -n gitlab -ojsonpath='{.data.password}' | base64 --decode ; echo
+```
+
+```powershell
+kubectl get secret gitlab-gitlab-initial-root-password -n gitlab -ojsonpath='{.data.password}' | ForEach-Object { [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) }
+``` 
