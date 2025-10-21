@@ -1,0 +1,72 @@
+# Simple pipeline to build and push a Docker image to GitLab Container Registry
+# Builds the React app under react-nginx-argocd/app using its Dockerfile.
+# Requires a runner with privileged mode enabled (for Docker-in-Docker).
+
+image: docker:24
+
+services:
+  - name: docker:24-dind
+    command: ["--tls=false"]
+
+variables:
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  # Path to the app we want to build
+  APP_DIR: "react-nginx-argocd/app"
+  # Destination repo in GitLab's Container Registry (sub-repo under this project)
+  IMAGE_DEST: "$CI_REGISTRY_IMAGE/react-nginx-argocd"
+
+stages:
+  - build
+
+before_script:
+  - docker info
+
+build-image:
+  stage: build
+  rules:
+    - if: $CI_COMMIT_BRANCH
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" "$CI_REGISTRY" --password-stdin
+    - |
+      if [ -f "$APP_DIR/Dockerfile" ]; then
+        echo "Found Dockerfile at $APP_DIR, building image"
+      else
+        echo "ERROR: No Dockerfile found at $APP_DIR." >&2
+        exit 1
+      fi
+    - IMAGE_TAG=${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}
+    - docker build -f "$APP_DIR/Dockerfile" -t "$IMAGE_DEST:$IMAGE_TAG" "$APP_DIR"
+    - docker push "$IMAGE_DEST:$IMAGE_TAG"
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ] || [ "$CI_COMMIT_BRANCH" = "master" ]; then
+        docker tag "$IMAGE_DEST:$IMAGE_TAG" "$IMAGE_DEST:latest"
+        docker push "$IMAGE_DEST:latest"
+      fi
+  artifacts:
+    when: never
+
+# Alternative (no privileged runner required): Kaniko
+# Uncomment and use this job instead of build-image if your runner cannot run Docker-in-Docker.
+#kaniko-build:
+#  image:
+#    name: gcr.io/kaniko-project/executor:debug
+#    entrypoint: [""]
+#  stage: build
+#  rules:
+#    - if: $CI_COMMIT_BRANCH
+#  variables:
+#    IMAGE_TAG: ${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}
+#  script:
+#    - |
+#      mkdir -p /kaniko/.docker
+#      cat > /kaniko/.docker/config.json <<EOF
+#      {"auths": {"$CI_REGISTRY": {"username": "$CI_REGISTRY_USER", "password": "$CI_REGISTRY_PASSWORD"}}}
+#      EOF
+#    - |
+#      /kaniko/executor \
+#        --context $CI_PROJECT_DIR/$APP_DIR \
+#        --dockerfile $CI_PROJECT_DIR/$APP_DIR/Dockerfile \
+#        --destination $IMAGE_DEST:$IMAGE_TAG \
+#        --cache=true

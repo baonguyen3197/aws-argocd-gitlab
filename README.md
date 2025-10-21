@@ -4,7 +4,6 @@
 ```bash
 aws eks --region <region> update-kubeconfig --name <cluster_name>
 ```
-
 ============================
 ## Label Node
 ```bash
@@ -46,13 +45,13 @@ helm upgrade --install gitlab gitlab/gitlab `
 ```bash
 helm upgrade --install gitlab gitlab/gitlab \
     -n gitlab \
-    -f gitlab-values.yaml
+  -f ./gitlab/gitlab-values.yaml
 ```
 
 ```powershell
 helm upgrade --install gitlab gitlab/gitlab `
     -n gitlab `
-    -f gitlab-values.yaml
+  -f .\gitlab\gitlab-values.yaml
 ```
 
 ## Check status
