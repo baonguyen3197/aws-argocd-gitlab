@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: react-nginx-uat
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://a685463cfa20d480c92c69bda54ed10e-e88bacfbd2a67a76.elb.ap-northeast-1.amazonaws.com/root/aws-argocd-gitlab.git
+    targetRevision: main
+    path: react-nginx-argocd/deploy/overlays/uat
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: web-uat
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
