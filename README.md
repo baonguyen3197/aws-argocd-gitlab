@@ -24,21 +24,30 @@ kubectl create namespace gitlab
 helm repo add gitlab https://charts.gitlab.io/
 helm repo update
 helm upgrade --install gitlab gitlab/gitlab \
-  --timeout 600s \
+  -n gitlab \
+  --create-namespace \
+  -f ./gitlab/gitlab-values.yaml \
   --set global.hosts.domain=nhqb-gitlab.duckdns.org \
-  --set global.hosts.externalIP=10.0.0.101 \
+  --set global.hosts.externalIP=10.0.0.62 \
   --set certmanager-issuer.email=baonguyen3197@gmail.com \
   --namespace gitlab
+
+kubectl apply -f gitlab/gp2-csi.yaml
+kubectl patch storageclass gp2-csi -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+helm upgrade --install gitlab gitlab/gitlab -n gitlab -f gitlab/gitlab-values.yaml
+
+kubectl apply -f gitlab/gitlab-ingress.yaml
 ```
 ```powershell
 helm repo add gitlab https://charts.gitlab.io/
 helm repo update
 helm upgrade --install gitlab gitlab/gitlab `
-  --timeout 600s `
   --set global.hosts.domain=example.com `
   --set global.hosts.externalIP=10.0.0.109 `
   --set certmanager-issuer.email=baonguyen3197@gmail.com `
   --namespace gitlab
+  -f ./gitlab/gitlab-values.yaml
 ```
 
 ## Update StorageClass to gp2
