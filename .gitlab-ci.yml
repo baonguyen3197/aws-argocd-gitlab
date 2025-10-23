@@ -17,7 +17,6 @@ variables:
   # The original image name referenced in kustomization overlays (will be rewritten)
   KUSTOMIZE_OLD_IMAGE: "ghcr.io/your-org/react-nginx-lab"
   DOCKERHUB_USERNAME: "nhqb3197"
-  DOCKERHUB_TOKEN: "dckr_pat_rx4GQ4Mw2MOiQ8aDd5b1IvSEWtM"
 
 build-and-push:
   stage: build
