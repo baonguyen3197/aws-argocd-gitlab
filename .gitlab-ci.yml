@@ -16,7 +16,6 @@ variables:
   DOCKERHUB_IMAGE: "$DOCKERHUB_USERNAME/react-nginx-argocd"
   # The original image name referenced in kustomization overlays (will be rewritten)
   KUSTOMIZE_OLD_IMAGE: "ghcr.io/your-org/react-nginx-lab"
-  DOCKERHUB_USERNAME: "nhqb3197"
 
 build-and-push:
   stage: build
