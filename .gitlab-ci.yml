@@ -1,21 +1,18 @@
-############################################################
-# Build and push Docker image to Docker Hub, then bump tags #
-############################################################
-
-# This pipeline builds the React app at react-nginx-argocd/app using its Dockerfile,
-# pushes to Docker Hub, and then updates the Kustomize overlays to the new image tag
-# so Argo CD will sync and deploy to EKS. Uses Kaniko (no Docker-in-Docker required).
-
 stages:
   - build
+  - sync
 
 variables:
-  # Path to the app we want to build
   APP_DIR: "react-nginx-argocd/app"
-  # The Docker Hub image to push (e.g. username/repo). Set DOCKERHUB_USERNAME in CI variables
   DOCKERHUB_IMAGE: "$DOCKERHUB_USERNAME/react-nginx-argocd"
-  # The original image name referenced in kustomization overlays (will be rewritten)
   KUSTOMIZE_OLD_IMAGE: "ghcr.io/your-org/react-nginx-lab"
+  DOCKERHUB_USERNAME: "nhqb3197"
+  DOCKERHUB_TOKEN: "dckr_pat_rx4GQ4Mw2MOiQ8aDd5b1IvSEWtM"
+  ARGOCD_BASE_URL: "http://argocd-server.argocd.svc.cluster.local"
+  ARGOCD_SERVER: "argocd-server.argocd.svc.cluster.local:80"
+  ARGOCD_AUTH_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmdvY2QiLCJzdWIiOiJuaHFiOmFwaUtleSIsIm5iZiI6MTc2MTIzNTg2MCwiaWF0IjoxNzYxMjM1ODYwLCJqdGkiOiI2YjUxYjlhYS0xMWY0LTQ3MmEtYWY1YS02MGM3ZmYxNTZjNWMifQ.Kwp3PDdMJnKmZcmntHGiEgc21iW2ONTbsazLKICmY3Q"
+  ARGOCD_APP: "react-nginx-dev"
+  ARGOCD_PLAINTEXT: true
 
 build-and-push:
   stage: build
@@ -58,26 +55,24 @@ build-and-push:
       dotenv: build.env
     when: on_success
 
-# Alternative (no privileged runner required): Kaniko
-# Uncomment and use this job instead of build-and-push if your runner cannot run Docker-in-Docker.
-#kaniko-build:
-#  image:
-#    name: gcr.io/kaniko-project/executor:debug
-#    entrypoint: [""]
-#  stage: build
-#  rules:
-#    - if: $CI_COMMIT_BRANCH
-#  variables:
-#    IMAGE_TAG: ${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}
-#  script:
-#    - |
-#      mkdir -p /kaniko/.docker
-#      cat > /kaniko/.docker/config.json <<EOF
-#      {"auths": {"https://index.docker.io/v1/": {"username": "$DOCKERHUB_USERNAME", "password": "$DOCKERHUB_TOKEN"}}}
-#      EOF
-#    - |
-#      /kaniko/executor \
-#        --context $CI_PROJECT_DIR/$APP_DIR \
-#        --dockerfile $CI_PROJECT_DIR/$APP_DIR/Dockerfile \
-#        --destination docker.io/$DOCKERHUB_IMAGE:$IMAGE_TAG \
-#        --cache=true
+argocd-sync:
+  stage: sync
+  tags: ["[k8s]"]
+  image: curlimages/curl:8.10.1
+  needs: ["build-and-push"]
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+  script:
+    - |
+      # Refresh repo cache
+      curl -fsS -X POST \
+        -H "Authorization: Bearer ${ARGOCD_AUTH_TOKEN}" \
+        -H "Content-Type: application/json" \
+        "${ARGOCD_BASE_URL}/api/v1/applications/${ARGOCD_APP}/refresh" \
+        -d '{"hard":true}'
+      # Sync app
+      curl -fsS -X POST \
+        -H "Authorization: Bearer ${ARGOCD_AUTH_TOKEN}" \
+        -H "Content-Type: application/json" \
+        "${ARGOCD_BASE_URL}/api/v1/applications/${ARGOCD_APP}/sync" \
+        -d '{}'

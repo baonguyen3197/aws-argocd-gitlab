@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: ghcr.io/your-org/react-nginx-lab:1.0.0
+          image: docker.io/nhqb3197/react-nginx-argocd:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

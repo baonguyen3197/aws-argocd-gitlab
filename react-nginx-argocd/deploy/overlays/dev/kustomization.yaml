@@ -6,7 +6,8 @@ resources:
   - ../../base
 patches:
   - path: patch-deploy.yaml
+  - path: image-pull-secrets.yaml
 images:
-  - name: ghcr.io/your-org/react-nginx-lab
-    newName: ghcr.io/your-org/react-nginx-lab
-    newTag: 1.0.0
+  - name: docker.io/nhqb3197/react-nginx-argocd
+    newName: docker.io/nhqb3197/react-nginx-argocd
+    newTag: latest
