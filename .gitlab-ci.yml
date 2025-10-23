@@ -5,18 +5,17 @@ stages:
 variables:
   APP_DIR: "react-nginx-argocd/app"
   DOCKERHUB_IMAGE: "$DOCKERHUB_USERNAME/react-nginx-argocd"
-  KUSTOMIZE_OLD_IMAGE: "ghcr.io/your-org/react-nginx-lab"
   DOCKERHUB_USERNAME: "nhqb3197"
-  DOCKERHUB_TOKEN: "dckr_pat_rx4GQ4Mw2MOiQ8aDd5b1IvSEWtM"
+  DOCKERHUB_TOKEN: "{{DOCKERHUB_TOKEN}}"
   ARGOCD_BASE_URL: "http://argocd-server.argocd.svc.cluster.local"
   ARGOCD_SERVER: "argocd-server.argocd.svc.cluster.local:80"
-  ARGOCD_AUTH_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmdvY2QiLCJzdWIiOiJuaHFiOmFwaUtleSIsIm5iZiI6MTc2MTIzNTg2MCwiaWF0IjoxNzYxMjM1ODYwLCJqdGkiOiI2YjUxYjlhYS0xMWY0LTQ3MmEtYWY1YS02MGM3ZmYxNTZjNWMifQ.Kwp3PDdMJnKmZcmntHGiEgc21iW2ONTbsazLKICmY3Q"
+  ARGOCD_AUTH_TOKEN: "{{ARGOCD_TOKEN}}"
   ARGOCD_APP: "react-nginx-dev"
   ARGOCD_PLAINTEXT: true
 
 build-and-push:
   stage: build
-  tags: ["[k8s]"]
+  tags: ["k8s"]
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
@@ -57,20 +56,23 @@ build-and-push:
 
 argocd-sync:
   stage: sync
-  tags: ["[k8s]"]
+  tags: ["k8s"]
   image: curlimages/curl:8.10.1
   needs: ["build-and-push"]
   rules:
     - if: '$CI_COMMIT_BRANCH'
   script:
     - |
-      # Refresh repo cache
+      set -e
+      : "${ARGOCD_BASE_URL:=http://argocd-server.argocd.svc.cluster.local}"
+      : "${ARGOCD_APP:=react-nginx-dev}"
+      if [ -z "${ARGOCD_AUTH_TOKEN:-}" ]; then
+        echo "ERROR: set ARGOCD_AUTH_TOKEN CI variable" >&2; exit 1; fi
       curl -fsS -X POST \
         -H "Authorization: Bearer ${ARGOCD_AUTH_TOKEN}" \
         -H "Content-Type: application/json" \
         "${ARGOCD_BASE_URL}/api/v1/applications/${ARGOCD_APP}/refresh" \
         -d '{"hard":true}'
-      # Sync app
       curl -fsS -X POST \
         -H "Authorization: Bearer ${ARGOCD_AUTH_TOKEN}" \
         -H "Content-Type: application/json" \
