@@ -29,7 +29,12 @@ build-image:
     - if: $CI_COMMIT_BRANCH
   script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" "$CI_REGISTRY" --password-stdin
-    - |
+    - |get nodes
+NAME           STATUS     ROLES           AGE     VERSION
+controlplane   Ready      control-plane   3d11h   v1.33.2
+node01         NotReady   <none>          3d10h   v1.33.2
+controlplane:~$ kubectl exec -it node01 -- bash
+Error from server (NotFound): pods "node01" not found
       if [ -f "$APP_DIR/Dockerfile" ]; then
         echo "Found Dockerfile at $APP_DIR, building image"
       else
