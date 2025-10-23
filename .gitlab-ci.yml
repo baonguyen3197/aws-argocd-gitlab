@@ -1,59 +1,100 @@
-# Simple pipeline to build and push a Docker image to GitLab Container Registry
-# Builds the React app under react-nginx-argocd/app using its Dockerfile.
-# Requires a runner with privileged mode enabled (for Docker-in-Docker).
+############################################################
+# Build and push Docker image to Docker Hub, then bump tags #
+############################################################
 
-image: docker:24
-
-services:
-  - name: docker:24-dind
-    command: ["--tls=false"]
-
-variables:
-  DOCKER_HOST: tcp://docker:2375
-  DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: ""
-  # Path to the app we want to build
-  APP_DIR: "react-nginx-argocd/app"
-  # Destination repo in GitLab's Container Registry (sub-repo under this project)
-  IMAGE_DEST: "$CI_REGISTRY_IMAGE/react-nginx-argocd"
+# This pipeline builds the React app at react-nginx-argocd/app using its Dockerfile,
+# pushes to Docker Hub, and then updates the Kustomize overlays to the new image tag
+# so Argo CD will sync and deploy to EKS. Uses Kaniko (no Docker-in-Docker required).
 
 stages:
   - build
+  - bump
 
-before_script:
-  - docker info
+variables:
+  # Path to the app we want to build
+  APP_DIR: "react-nginx-argocd/app"
+  # The Docker Hub image to push (e.g. username/repo). Set DOCKERHUB_USERNAME in CI variables
+  DOCKERHUB_IMAGE: "$DOCKERHUB_USERNAME/react-nginx-argocd"
+  # The original image name referenced in kustomization overlays (will be rewritten)
+  KUSTOMIZE_OLD_IMAGE: "ghcr.io/your-org/react-nginx-lab"
 
-build-image:
+build-and-push:
   stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
   rules:
-    - if: $CI_COMMIT_BRANCH
+    - if: '$CI_COMMIT_BRANCH'
+  tags:
+    - nhqb-gitlab-runner
   script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" "$CI_REGISTRY" --password-stdin
-    - |get nodes
-NAME           STATUS     ROLES           AGE     VERSION
-controlplane   Ready      control-plane   3d11h   v1.33.2
-node01         NotReady   <none>          3d10h   v1.33.2
-controlplane:~$ kubectl exec -it node01 -- bash
-Error from server (NotFound): pods "node01" not found
-      if [ -f "$APP_DIR/Dockerfile" ]; then
-        echo "Found Dockerfile at $APP_DIR, building image"
-      else
-        echo "ERROR: No Dockerfile found at $APP_DIR." >&2
+    - echo "IMAGE_TAG=${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}" > build.env
+    - |
+      if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+        echo "ERROR: Set DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in CI/CD variables" >&2
         exit 1
       fi
-    - IMAGE_TAG=${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}
-    - docker build -f "$APP_DIR/Dockerfile" -t "$IMAGE_DEST:$IMAGE_TAG" "$APP_DIR"
-    - docker push "$IMAGE_DEST:$IMAGE_TAG"
     - |
-      if [ "$CI_COMMIT_BRANCH" = "main" ] || [ "$CI_COMMIT_BRANCH" = "master" ]; then
-        docker tag "$IMAGE_DEST:$IMAGE_TAG" "$IMAGE_DEST:latest"
-        docker push "$IMAGE_DEST:latest"
+      if [ ! -f "$APP_DIR/Dockerfile" ]; then
+        echo "ERROR: No Dockerfile at $APP_DIR" >&2
+        exit 1
       fi
+    - |
+      mkdir -p /kaniko/.docker
+      cat > /kaniko/.docker/config.json <<EOF
+      {"auths": {"https://index.docker.io/v1/": {"username": "$DOCKERHUB_USERNAME", "password": "$DOCKERHUB_TOKEN"}}}
+      EOF
+    - |
+      IMAGE_TAG=${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}
+      DEST_ARGS="--destination docker.io/$DOCKERHUB_IMAGE:$IMAGE_TAG"
+      if [ "$CI_COMMIT_BRANCH" = "main" ] || [ "$CI_COMMIT_BRANCH" = "master" ]; then
+        DEST_ARGS="$DEST_ARGS --destination docker.io/$DOCKERHUB_IMAGE:latest"
+      fi
+      /kaniko/executor \
+        --context $CI_PROJECT_DIR/$APP_DIR \
+        --dockerfile $CI_PROJECT_DIR/$APP_DIR/Dockerfile \
+        --cache=true \
+        $DEST_ARGS
   artifacts:
-    when: never
+    reports:
+      dotenv: build.env
+    when: on_success
+
+bump-kustomize-tags:
+  stage: bump
+  needs: ["build-and-push"]
+  image: alpine:3.20
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+  tags:
+    - nhqb-gitlab-runner
+  before_script:
+    - apk add --no-cache git yq
+    - git config user.name "ci-bot"
+    - git config user.email "ci-bot@example.com"
+    # Allow pushing to GitLab with self-signed certs if applicable
+    - git config http.sslVerify false
+    - git fetch origin "$CI_COMMIT_REF_NAME"
+    - git checkout "$CI_COMMIT_REF_NAME"
+  script:
+    - |
+      export IMAGE_TAG=${IMAGE_TAG:-${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}}
+      export NEW_IMAGE="docker.io/$DOCKERHUB_IMAGE"
+      echo "Updating dev overlay to $NEW_IMAGE:$IMAGE_TAG"
+      FILE="react-nginx-argocd/deploy/overlays/dev/kustomization.yaml"
+      if [ -f "$FILE" ]; then
+        yq -i 'with(.images; . = [{"name": env("KUSTOMIZE_OLD_IMAGE"), "newName": env("NEW_IMAGE"), "newTag": env("IMAGE_TAG")}])' "$FILE"
+        echo "Updated $FILE"
+      else
+        echo "WARN: $FILE not found" >&2
+      fi
+    - |
+      git add react-nginx-argocd/deploy/overlays/dev/kustomization.yaml || true
+      git commit -m "chore(ci): bump image to $DOCKERHUB_IMAGE:${IMAGE_TAG} [skip ci]" || echo "No changes to commit"
+      git push origin "$CI_COMMIT_REF_NAME"
 
 # Alternative (no privileged runner required): Kaniko
-# Uncomment and use this job instead of build-image if your runner cannot run Docker-in-Docker.
+# Uncomment and use this job instead of build-and-push if your runner cannot run Docker-in-Docker.
 #kaniko-build:
 #  image:
 #    name: gcr.io/kaniko-project/executor:debug
@@ -67,11 +108,11 @@ Error from server (NotFound): pods "node01" not found
 #    - |
 #      mkdir -p /kaniko/.docker
 #      cat > /kaniko/.docker/config.json <<EOF
-#      {"auths": {"$CI_REGISTRY": {"username": "$CI_REGISTRY_USER", "password": "$CI_REGISTRY_PASSWORD"}}}
+#      {"auths": {"https://index.docker.io/v1/": {"username": "$DOCKERHUB_USERNAME", "password": "$DOCKERHUB_TOKEN"}}}
 #      EOF
 #    - |
 #      /kaniko/executor \
 #        --context $CI_PROJECT_DIR/$APP_DIR \
 #        --dockerfile $CI_PROJECT_DIR/$APP_DIR/Dockerfile \
-#        --destination $IMAGE_DEST:$IMAGE_TAG \
+#        --destination docker.io/$DOCKERHUB_IMAGE:$IMAGE_TAG \
 #        --cache=true
