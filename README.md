@@ -14,11 +14,7 @@ kubectl label nodes ip-10-0-0-101.ap-northeast-1.compute.internal gitlab-node=tr
 kubectl label nodes ip-10-0-0-5.ap-northeast-1.compute.internal argocd-node=true
 kubectl label nodes ip-10-0-0-173.ap-northeast-1.compute.internal npm-node=true
 ```
-## Set up
-```bash
-kubectl create namespace gitlab
-```
-
+============================
 ## Install GitLab with Helm
 ```bash
 helm repo add gitlab https://charts.gitlab.io/
