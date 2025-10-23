@@ -8,7 +8,6 @@
 
 stages:
   - build
-  - bump
 
 variables:
   # Path to the app we want to build
@@ -17,10 +16,12 @@ variables:
   DOCKERHUB_IMAGE: "$DOCKERHUB_USERNAME/react-nginx-argocd"
   # The original image name referenced in kustomization overlays (will be rewritten)
   KUSTOMIZE_OLD_IMAGE: "ghcr.io/your-org/react-nginx-lab"
+  DOCKERHUB_USERNAME: "nhqb3197"
+  DOCKERHUB_TOKEN: "dckr_pat_rx4GQ4Mw2MOiQ8aDd5b1IvSEWtM"
 
 build-and-push:
   stage: build
-  tags: ["k8s"]
+  tags: ["[k8s]"]
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
@@ -58,38 +59,6 @@ build-and-push:
     reports:
       dotenv: build.env
     when: on_success
-
-bump-kustomize-tags:
-  stage: bump
-  tags: ["k8s"]
-  needs: ["build-and-push"]
-  image: alpine:3.20
-  rules:
-    - if: '$CI_COMMIT_BRANCH'
-  before_script:
-    - apk add --no-cache git yq
-    - git config user.name "ci-bot"
-    - git config user.email "ci-bot@example.com"
-    # Allow pushing to GitLab with self-signed certs if applicable
-    - git config http.sslVerify false
-    - git fetch origin "$CI_COMMIT_REF_NAME"
-    - git checkout "$CI_COMMIT_REF_NAME"
-  script:
-    - |
-      export IMAGE_TAG=${IMAGE_TAG:-${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}}
-      export NEW_IMAGE="docker.io/$DOCKERHUB_IMAGE"
-      echo "Updating dev overlay to $NEW_IMAGE:$IMAGE_TAG"
-      FILE="react-nginx-argocd/deploy/overlays/dev/kustomization.yaml"
-      if [ -f "$FILE" ]; then
-        yq -i 'with(.images; . = [{"name": env("KUSTOMIZE_OLD_IMAGE"), "newName": env("NEW_IMAGE"), "newTag": env("IMAGE_TAG")}])' "$FILE"
-        echo "Updated $FILE"
-      else
-        echo "WARN: $FILE not found" >&2
-      fi
-    - |
-      git add react-nginx-argocd/deploy/overlays/dev/kustomization.yaml || true
-      git commit -m "chore(ci): bump image to $DOCKERHUB_IMAGE:${IMAGE_TAG} [skip ci]" || echo "No changes to commit"
-      git push origin "$CI_COMMIT_REF_NAME"
 
 # Alternative (no privileged runner required): Kaniko
 # Uncomment and use this job instead of build-and-push if your runner cannot run Docker-in-Docker.

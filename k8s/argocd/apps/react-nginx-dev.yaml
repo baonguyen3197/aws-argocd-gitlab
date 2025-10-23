@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://a0d5e1cc50ce94d55b96b3d9618f0ebf-0e82e9f4f3ba538a.elb.ap-northeast-1.amazonaws.com/root/aws-argocd-gitlab.git
+    repoURL: http://nhqb-gitlab.duckdns.org/root/aws-argocd-gitlab.git
     targetRevision: main
     path: react-nginx-argocd/deploy/overlays/dev
   destination:
