@@ -5,16 +5,6 @@
 aws eks --region <region> update-kubeconfig --name <cluster_name>
 ```
 ============================
-## Label Node
-```bash
-kubectl label nodes <node-name> gitlab=true
-kubectl label nodes <node-name> argocd=true
-
-kubectl label nodes ip-10-0-0-101.ap-northeast-1.compute.internal gitlab-node=true
-kubectl label nodes ip-10-0-0-5.ap-northeast-1.compute.internal argocd-node=true
-kubectl label nodes ip-10-0-0-173.ap-northeast-1.compute.internal npm-node=true
-```
-============================
 ## Install GitLab with Helm
 ```bash
 helm repo add gitlab https://charts.gitlab.io/
@@ -39,14 +29,25 @@ kubectl apply -f gitlab/gitlab-ingress.yaml
 helm repo add gitlab https://charts.gitlab.io/
 helm repo update
 helm upgrade --install gitlab gitlab/gitlab `
-  --set global.hosts.domain=example.com `
-  --set global.hosts.externalIP=10.0.0.109 `
+  -n gitlab `
+  --create-namespace `
+  -f ./gitlab/gitlab-values.yaml `
+  --set global.hosts.domain=nhqb-gitlab.duckdns.org `
+  --set global.hosts.externalIP=52.192.65.76 `
   --set certmanager-issuer.email=baonguyen3197@gmail.com `
   --namespace gitlab
-  -f ./gitlab/gitlab-values.yaml
 ```
 
 ## Update StorageClass to gp2
+```bash
+kubectl apply -f gitlab/gp2-csi.yaml
+kubectl patch storageclass gp2-csi -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+
+helm upgrade --install gitlab gitlab/gitlab -n gitlab -f gitlab/gitlab-values.yaml
+
+kubectl apply -f gitlab/gitlab-ingress.yaml
+```
+
 ```bash
 helm upgrade --install gitlab gitlab/gitlab \
     -n gitlab \
