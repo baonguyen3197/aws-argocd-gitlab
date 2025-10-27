@@ -32,6 +32,8 @@ kubectl create secret docker-registry regcred \
 ============================
 ```bash
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+kubectl apply -n argo-rollouts -f https://raw.githubusercontent.com/argoproj/argo-rollouts/stable/manifests/install.yaml
 ```
 
 ============================
@@ -72,4 +74,22 @@ kubectl patch cm argocd-rbac-cm -n argocd --type merge \
 
 kubectl patch cm argocd-cm -n argocd --type=merge --patch-file .\argocd-accounts.json
 kubectl patch cm argocd-rbac-cm -n argocd --type=merge --patch-file .\argocd-rbac.json
+```
+
+============================
+# Argo Rollouts
+============================
+```bash
+# Install Argo Rollouts CRDs and Controller
+kubectl create namespace argo-rollouts
+kubectl apply -n argo-rollouts -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
+
+kubectl apply -f nginx-rollouts.yaml
+kubectl argo rollouts get rollout nginx-rollout --watch
+kubectl argo rollouts promote nginx-rollout
+kubectl argo rollouts history nginx-rollout
+
+kubectl argo rollouts abort nginx-rollout
+
+kubectl argo rollouts dashboard
 ```

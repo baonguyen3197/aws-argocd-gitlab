@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: react-rollout-role
+  namespace: argo-rollouts
+  labels:
+    app.kubernetes.io/name: react-nginx
+    app.kubernetes.io/part-of: react-nginx-dev
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch", "update"]

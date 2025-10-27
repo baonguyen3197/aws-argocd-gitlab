@@ -7,6 +7,7 @@ aws eks --region <region> update-kubeconfig --name <cluster_name>
 ============================
 ## Install GitLab with Helm
 ```bash
+# bash
 helm repo add gitlab https://charts.gitlab.io/
 helm repo update
 helm upgrade --install gitlab gitlab/gitlab \
@@ -26,6 +27,7 @@ helm upgrade --install gitlab gitlab/gitlab -n gitlab -f gitlab/gitlab-values.ya
 kubectl apply -f gitlab/gitlab-ingress.yaml
 ```
 ```powershell
+# powershell
 helm repo add gitlab https://charts.gitlab.io/
 helm repo update
 helm upgrade --install gitlab gitlab/gitlab `
@@ -55,6 +57,8 @@ helm upgrade --install gitlab gitlab/gitlab \
 ```
 
 ```powershell
+kubectl annotate storageclass gp2-csi storageclass.kubernetes.io/is-default-class=true --overwrite
+
 helm upgrade --install gitlab gitlab/gitlab `
     -n gitlab `
   -f .\gitlab\gitlab-values.yaml
@@ -85,4 +89,15 @@ kubectl delete namespace gitlab
 ```bash
 kubectl apply -f nginx-proxy-manager/npm-values.yaml
 kubectl -n npm get svc npm -w
+```
+
+============================
+## Add Docker Registry Credentials to Gitlab
+```powershell
+kubectl create secret docker-registry regcred `
+  --docker-server=https://index.docker.io/v1/ `
+  --docker-username=<DOCKERHUB_USER> `
+  --docker-password=<DOCKERHUB_PASS> `
+  --docker-email=<you@example.com> `
+  -n gitlab
 ```

@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: react-rollout-postsync
+  namespace: argo-rollouts
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+  labels:
+    app.kubernetes.io/name: react-nginx
+    app.kubernetes.io/part-of: react-nginx-dev
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        job: react-rollout-postsync
+    spec:
+      serviceAccountName: react-rollout-sa
+      restartPolicy: Never
+      containers:
+        - name: kubectl
+          image: bitnami/kubectl:1.30
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              DEPLOYMENT_NAME="web-dev-react-nginx"
+              echo "Restarting rollout for ${DEPLOYMENT_NAME} in namespace $KUBERNETES_NAMESPACE"
+              kubectl rollout restart deployment/${DEPLOYMENT_NAME}
+              kubectl rollout status deployment/${DEPLOYMENT_NAME} --timeout=5m

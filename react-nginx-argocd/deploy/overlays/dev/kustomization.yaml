@@ -4,6 +4,10 @@ namePrefix: web-dev-
 namespace: web-dev
 resources:
   - ../../base
+  - rollout-sa.yaml
+  - rollout-role.yaml
+  - rollout-rolebinding.yaml
+  - rollout-postsync-job.yaml
 patches:
   - path: patch-deploy.yaml
   - path: image-pull-secrets.yaml

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: react-rollout-sa
+  namespace: argo-rollouts
+  labels:
+    app.kubernetes.io/name: react-nginx
+    app.kubernetes.io/part-of: react-nginx-dev
